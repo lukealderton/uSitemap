@@ -1,0 +1,67 @@
+@inherits umbraco.MacroEngines.DynamicNodeContext
+@using umbraco;
+@using umbraco.NodeFactory;
+@using System.Xml;
+@{
+    // Clear any current response
+    Response.Clear();
+    // Set new response type to rss
+    Response.ContentType = "text/xml";
+ 
+    // Create the feedwriter and start document
+    XmlTextWriter feedWriter = new XmlTextWriter(Response.OutputStream, System.Text.Encoding.UTF8);
+ 
+    feedWriter.WriteStartDocument();
+ 
+    // Set up/declare the rss content
+    feedWriter.WriteStartElement("urlset");
+    feedWriter.WriteAttributeString("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9");
+    feedWriter.WriteAttributeString("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
+    feedWriter.WriteAttributeString("xsi:schemaLocation", "http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd");
+ 
+    // List all the pages in this site
+    @listPages(feedWriter, new Node(-1))
+  
+    // Finnish and end the sitemap feed
+    feedWriter.WriteEndDocument();
+    feedWriter.Flush();
+    feedWriter.Close();
+ 
+    // Finish the response
+    Response.End();
+}
+@helper listPages(XmlTextWriter feedWriter, Node nodeToProcess)
+{
+    foreach (Node node in nodeToProcess.Children)
+    {
+        if (!node.GetProperty<bool>("umbracoNaviHide") &&
+            node.template > 0 &&
+            node.template != 1141 && //uBlogsy DateTime Redirect.
+            node.template != 1565) // Sitemap itself.
+        {
+            feedWriter.WriteStartElement("url");
+            feedWriter.WriteElementString("loc", umbraco.library.NiceUrlWithDomain(node.Id));
+            feedWriter.WriteElementString("lastmod", Convert.ToDateTime(node.UpdateDate).ToString("yyyy-MM-dd"));
+ 
+            string sitemapPriority = node.GetProperty<string>("sitemapPriority");
+            if (!string.IsNullOrEmpty(sitemapPriority))
+            {
+                feedWriter.WriteElementString("priority", sitemapPriority);
+            }
+ 
+            string sitemapChangeFreq = node.GetProperty<string>("sitemapChangeFreq");
+            if (!string.IsNullOrEmpty(sitemapChangeFreq))
+            {
+                feedWriter.WriteElementString("changefreq", sitemapChangeFreq);
+            }
+ 
+            feedWriter.WriteEndElement();
+        }
+ 
+        // Recursive call.
+        if (node.Children.Count > 0)
+        {
+            @listPages(feedWriter, node)
+        }
+    }
+}

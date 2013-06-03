@@ -1,0 +1,82 @@
+@inherits Umbraco.Web.Mvc.UmbracoTemplatePage
+@using System.Web.Mvc.Html;
+@using Umbraco.Web;
+@using System.Xml;
+@{
+    // Clear any current response
+    Response.Clear();
+    // Set new response type to rss
+    Response.ContentType = "text/xml";
+	
+	// Create the feedwriter and start document
+    XmlTextWriter feedWriter = new XmlTextWriter(Response.OutputStream, System.Text.Encoding.UTF8);
+	
+	feedWriter.WriteStartDocument();
+	
+	// Set up/declare the rss content
+    feedWriter.WriteStartElement("urlset");
+    feedWriter.WriteAttributeString("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9");
+	feedWriter.WriteAttributeString("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
+	feedWriter.WriteAttributeString("xsi:schemaLocation", "http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd");
+
+	// List all the pages in this site
+	@listPages(feedWriter, CurrentPage, true, int.Parse(ViewData["rootLevel"].ToString()))
+	
+	// Finnish and end the sitemap feed
+	feedWriter.WriteEndDocument();
+    feedWriter.Flush();
+    feedWriter.Close();
+
+    // Finish the response
+    Response.End();
+}
+
+@helper listPages(XmlTextWriter feedWriter, dynamic page, bool getRoot, int rootLevel = 1)
+{
+	// The node to start listing from
+    if(getRoot)
+    {
+        page = page.AncestorOrSelf(rootLevel);
+    }
+    
+	// The chiuldren under the current node
+    dynamic children = page.Children;
+    
+	// Loop through the children and add them to the sitemap
+    foreach(dynamic node in children)
+    {
+		// Don't add if it's hidden from the sitemap
+        if (!node.umbracoNaviHide)
+        {
+			// Don't add if it has no template set
+            if (node.templateId > 0)
+            {
+				// Start the new element
+				feedWriter.WriteStartElement("url");
+				// Add elements for this page element
+				feedWriter.WriteElementString("loc", Umbraco.NiceUrlWithDomain(node.Id));
+				feedWriter.WriteElementString("lastmod", Convert.ToDateTime(node.UpdateDate).ToString("yyyy-MM-dd"));
+				
+				// If this node has 'sitemapPriority' property then add it
+                if (node.HasProperty("sitemapPriority") && !string.IsNullOrEmpty(node.GetPropertyValue("sitemapPriority").ToString()))
+                {
+                    feedWriter.WriteElementString("priority", node.GetPropertyValue("sitemapPriority").ToString());
+                }
+				
+				// If this node has 'sitemapChangeFreq' property then add it
+                if (node.HasProperty("sitemapChangeFreq") && !string.IsNullOrEmpty(node.GetPropertyValue("sitemapChangeFreq").ToString()))
+                {
+                    feedWriter.WriteElementString("changefreq", node.GetPropertyValue("sitemapChangeFreq").ToString());
+                }
+				
+				feedWriter.WriteEndElement();
+            }
+    
+			// If this node has children then add them
+            if (node.Children().Count() > 0)
+            {
+                @listPages(feedWriter, node, false)
+            }
+        }
+    }
+}
